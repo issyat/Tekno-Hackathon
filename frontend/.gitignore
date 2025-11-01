@@ -1,0 +1,11 @@
+# Dependencies
+node_modules/
+
+# Builds
+/dist/
+/*.log
+
+# Env & tooling
+.env
+.vscode/
+.DS_Store
