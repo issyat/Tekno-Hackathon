@@ -7,6 +7,8 @@ import { LayerToggle } from './components/LayerToggle'
 import { NeedThresholdControl } from './components/NeedThresholdControl'
 import { PowerThresholdControl } from './components/PowerThresholdControl'
 import { TopBar } from './components/TopBar'
+import ChargingNeedOverlay from './components/ChargingNeedOverlay'
+import ChargingNeedDrawer from './components/ChargingNeedDrawer'
 import { gradients, layerDefinitions } from './constants/layers'
 import { useEvStations } from './hooks/useEvStations'
 import { useTrafficSegments } from './hooks/useTrafficSegments'
@@ -24,6 +26,8 @@ export default function App() {
   )
   const [needSliderValue, setNeedSliderValue] = useState(40)
   const [powerSliderValue, setPowerSliderValue] = useState(3)
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const [selectedNeed, setSelectedNeed] = useState(null)
 
   const evStations = useEvStations()
   const trafficSegments = useTrafficSegments()
@@ -127,6 +131,13 @@ export default function App() {
     setPowerSliderValue(next)
   }, [])
 
+  const handleSelectNeedPoint = useCallback((point) => {
+    setSelectedNeed(point)
+    setDrawerOpen(true)
+  }, [])
+
+  const handleCloseDrawer = useCallback(() => setDrawerOpen(false), [])
+
   return (
     <div className="page">
       <TopBar onSearch={handleSearch} />
@@ -188,8 +199,16 @@ export default function App() {
               maxIntensity={1.1}
             />
           )}
+          {visibleLayers.chargingNeed && chargingNeedPoints.length > 0 && (
+            <ChargingNeedOverlay
+              points={chargingNeedPoints}
+              threshold={needSliderValue / 100}
+              onSelect={handleSelectNeedPoint}
+            />
+          )}
         </MapContainer>
       </section>
+      <ChargingNeedDrawer open={drawerOpen} onClose={handleCloseDrawer} point={selectedNeed} />
     </div>
   )
 }
