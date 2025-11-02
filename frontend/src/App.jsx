@@ -32,7 +32,9 @@ export default function App() {
   const mapRef = useRef(null)
   const [center, setCenter] = useState([48.8566, 2.3522]) // Paris as default
   const [zoom, setZoom] = useState(12)
-  const [stations, setStations] = useState([])
+  const [evStations, setEvStations] = useState([])
+  const [trafficTiles, setTrafficTiles] = useState([])
+  const [activeLayer, setActiveLayer] = useState('ev')
 
   // Ensure Leaflet knows the container's real size after layout
   useEffect(() => {
@@ -57,9 +59,21 @@ export default function App() {
       .then((r) => r.json())
       .then((raw) => {
         const norm = normalizeStations(raw)
-        setStations(norm)
+        setEvStations(norm)
       })
       .catch((e) => console.error('Failed to load merged_ev_stations.json', e))
+  }, [])
+
+  // Load traffic congestion tiles
+  useEffect(() => {
+    const url = '/data/2025-11-01T22_55_39.606Z.geojson'
+    fetch(url)
+      .then((r) => r.json())
+      .then((raw) => {
+        const norm = normalizeTrafficTiles(raw)
+        setTrafficTiles(norm)
+      })
+      .catch((e) => console.error('Failed to load congestion geojson', e))
   }, [])
 
   const handleSearch = useCallback(async (query) => {
@@ -92,11 +106,29 @@ export default function App() {
     }
   }, [])
 
+  const evHeatPoints = useMemo(() => {
+    if (!evStations.length) return []
+    return evStations
+      .filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng))
+      .map((s) => [s.lat, s.lng, weightForStation(s)])
+  }, [evStations])
+
+  const trafficHeatPoints = useMemo(() => {
+    if (!trafficTiles.length) return []
+    return trafficTiles
+      .filter((t) => Number.isFinite(t.lat) && Number.isFinite(t.lng))
+      .map((t) => [t.lat, t.lng, weightForCongestion(t)])
+  }, [trafficTiles])
+
+  const activeHeatPoints = activeLayer === 'ev' ? evHeatPoints : trafficHeatPoints
+  const activeGradient = activeLayer === 'ev' ? gradients.ev : gradients.traffic
+
   return (
     <div className="page">
       <TopBar onSearch={handleSearch} />
       <main className="bento">
         <section className="card map-card">
+          <LayerToggle active={activeLayer} onChange={setActiveLayer} />
           <MapContainer
             center={center}
             zoom={zoom}
@@ -109,7 +141,7 @@ export default function App() {
               attribution='&copy; OpenStreetMap contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
               url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
             />
-            <HeatmapLayer stations={stations} />
+            <HeatmapLayer points={activeHeatPoints} gradient={activeGradient} />
           </MapContainer>
         </section>
         {/* Future bento cards can go here */}
@@ -118,16 +150,9 @@ export default function App() {
   )
 }
 
-function HeatmapLayer({ stations }) {
+function HeatmapLayer({ points, gradient }) {
   const map = useMap()
   const layerRef = useRef(null)
-
-  const heatPoints = useMemo(() => {
-    if (!stations.length) return []
-    return stations
-      .filter((s) => Number.isFinite(s.lat) && Number.isFinite(s.lng))
-      .map((s) => [s.lat, s.lng, weightForStation(s)])
-  }, [stations])
 
   useEffect(() => {
     if (!map) return
@@ -137,19 +162,14 @@ function HeatmapLayer({ stations }) {
       layerRef.current = null
     }
 
-    if (!heatPoints.length) return
+    if (!points.length) return
 
-    const layer = L.heatLayer(heatPoints, {
+    const layer = L.heatLayer(points, {
       radius: 26,
       blur: 18,
       maxZoom: 15,
       minOpacity: 0.25,
-      gradient: {
-        0.0: '#22d3ee',
-        0.4: '#38bdf8',
-        0.7: '#f97316',
-        1.0: '#ef4444',
-      },
+      gradient,
     }).addTo(map)
 
     layerRef.current = layer
@@ -160,9 +180,45 @@ function HeatmapLayer({ stations }) {
         layerRef.current = null
       }
     }
-  }, [map, heatPoints])
+  }, [map, points, gradient])
 
   return null
+}
+
+function LayerToggle({ active, onChange }) {
+  return (
+    <div className="layer-toggle" role="group" aria-label="Layer selection">
+      <button
+        type="button"
+        aria-pressed={active === 'ev'}
+        onClick={() => onChange('ev')}
+      >
+        EV Charging
+      </button>
+      <button
+        type="button"
+        aria-pressed={active === 'traffic'}
+        onClick={() => onChange('traffic')}
+      >
+        Traffic
+      </button>
+    </div>
+  )
+}
+
+const gradients = {
+  ev: {
+    0.0: '#22d3ee',
+    0.4: '#38bdf8',
+    0.7: '#f97316',
+    1.0: '#ef4444',
+  },
+  traffic: {
+    0.0: '#bbf7d0',
+    0.4: '#86efac',
+    0.7: '#22c55e',
+    1.0: '#15803d',
+  },
 }
 
 // --- helpers ---
@@ -236,6 +292,40 @@ function normalizeStations(raw) {
     console.warn('normalizeStations failed', e)
   }
   return []
+}
+
+function normalizeTrafficTiles(raw) {
+  try {
+    if (raw && raw.type === 'FeatureCollection' && Array.isArray(raw.features)) {
+      return raw.features.flatMap((feature, featIdx) => {
+        const tiles = feature?.properties?.tiledData?.tiles
+        if (!Array.isArray(tiles)) return []
+        return tiles
+          .map((tile, tileIdx) => {
+            const lat = toNum(tile.lat ?? tile.latitude ?? tile.y)
+            const lng = toNum(tile.lon ?? tile.lng ?? tile.longitude ?? tile.x)
+            const intensity = toNum(tile.c ?? tile.value ?? tile.intensity)
+            return {
+              id: `${feature.id ?? featIdx}-${tileIdx}`,
+              lat,
+              lng,
+              intensity,
+            }
+          })
+          .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Number.isFinite(p.intensity))
+      })
+    }
+  } catch (e) {
+    console.warn('normalizeTrafficTiles failed', e)
+  }
+  return []
+}
+
+function weightForCongestion(point) {
+  const intensity = Number(point.intensity)
+  if (!Number.isFinite(intensity)) return 0.5
+  const scaled = intensity / 40
+  return Math.max(0.25, Math.min(1.1, scaled))
 }
 
 function toNum(v) {
