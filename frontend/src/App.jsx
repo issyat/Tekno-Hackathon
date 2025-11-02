@@ -130,68 +130,66 @@ export default function App() {
   return (
     <div className="page">
       <TopBar onSearch={handleSearch} />
-      <main className="bento">
-        <section className="card map-card">
-          <LayerToggle visible={visibleLayers} onToggle={toggleLayer} layers={layerDefinitions} />
-          <NeedThresholdControl
-            value={needSliderValue}
-            onChange={handleNeedSliderChange}
-            disabled={!visibleLayers.chargingNeed}
+      <section className="map-card">
+        <LayerToggle visible={visibleLayers} onToggle={toggleLayer} layers={layerDefinitions} />
+        <NeedThresholdControl
+          value={needSliderValue}
+          onChange={handleNeedSliderChange}
+          disabled={!visibleLayers.chargingNeed}
+        />
+        <PowerThresholdControl
+          value={powerSliderValue}
+          onChange={handlePowerSliderChange}
+          disabled={!visibleLayers.ev}
+        />
+        <MapContainer
+          center={center}
+          zoom={zoom}
+          whenCreated={(map) => (mapRef.current = map)}
+          preferCanvas
+          className="map"
+          style={{ height: '100%', width: '100%' }}
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          <PowerThresholdControl
-            value={powerSliderValue}
-            onChange={handlePowerSliderChange}
-            disabled={!visibleLayers.ev}
-          />
-          <MapContainer
-            center={center}
-            zoom={zoom}
-            whenCreated={(map) => (mapRef.current = map)}
-            preferCanvas
-            className="map"
-            style={{ height: '100%', width: '100%' }}
-          >
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          {visibleLayers.ev && evHeatPoints.length > 0 && (
+            <HeatmapLayer
+              key="ev-heat"
+              points={evHeatPoints}
+              gradient={gradients.ev}
+              radius={24}
+              blur={18}
+              maxZoom={15}
             />
-            {visibleLayers.ev && evHeatPoints.length > 0 && (
-              <HeatmapLayer
-                key="ev-heat"
-                points={evHeatPoints}
-                gradient={gradients.ev}
-                radius={24}
-                blur={18}
-                maxZoom={15}
-              />
-            )}
-            {visibleLayers.traffic && trafficHeatPoints.length > 0 && (
-              <HeatmapLayer
-                key="traffic-heat"
-                points={trafficHeatPoints}
-                gradient={gradients.traffic}
-                radius={26}
-                blur={18}
-                maxZoom={13}
-                minOpacity={0.12}
-                maxIntensity={1.05}
-              />
-            )}
-            {visibleLayers.chargingNeed && chargingNeedHeatPoints.length > 0 && (
-              <HeatmapLayer
-                key="charging-need-heat"
-                points={chargingNeedHeatPoints}
-                gradient={gradients.chargingNeed}
-                radius={30}
-                blur={22}
-                maxZoom={12}
-                minOpacity={0.2}
-                maxIntensity={1.1}
-              />
-            )}
-          </MapContainer>
-        </section>
-      </main>
+          )}
+          {visibleLayers.traffic && trafficHeatPoints.length > 0 && (
+            <HeatmapLayer
+              key="traffic-heat"
+              points={trafficHeatPoints}
+              gradient={gradients.traffic}
+              radius={26}
+              blur={18}
+              maxZoom={13}
+              minOpacity={0.12}
+              maxIntensity={1.05}
+            />
+          )}
+          {visibleLayers.chargingNeed && chargingNeedHeatPoints.length > 0 && (
+            <HeatmapLayer
+              key="charging-need-heat"
+              points={chargingNeedHeatPoints}
+              gradient={gradients.chargingNeed}
+              radius={30}
+              blur={22}
+              maxZoom={12}
+              minOpacity={0.2}
+              maxIntensity={1.1}
+            />
+          )}
+        </MapContainer>
+      </section>
     </div>
   )
 }
