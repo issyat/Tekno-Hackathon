@@ -12,7 +12,7 @@ export function TopBar({ onSearch }) {
 
   return (
     <header className="topbar">
-      <div className="brand">Tekno Map</div>
+      <div className="brand">NovaSens</div>
       <form className="search" onSubmit={submit} role="search">
         <input
           type="search"
