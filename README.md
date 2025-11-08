@@ -35,5 +35,4 @@ Then open the URL printed by Vite (defaults to http://localhost:5173).
 - `npm run preview` – preview the production bundle
 
 ## Notes
-- Requires Node.js 18+.
-- Place your screenshot at `frontend/public/nova-sens-map.png` (replace with your own if needed).
+- Requires Node.js 18+
